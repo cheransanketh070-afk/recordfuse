@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from .models import EntityRecord
 from .scoring import SimilarityEngine
@@ -50,16 +50,27 @@ def evaluate_pairs(
 ) -> EvaluationMetrics:
     """Evaluate pair decisions against binary labels.
 
-    Ambiguous decisions are counted separately and, by default, treated as non-matches in
-    confusion-matrix metrics. Set ``ambiguous_as_match=True`` to measure a review-assisted
-    operating point where ambiguous pairs enter the positive queue.
+    Ambiguous decisions are counted separately and, by default, treated as
+    non-matches in confusion-matrix metrics. Set ``ambiguous_as_match=True``
+    to measure a review-assisted operating point where ambiguous pairs enter
+    the positive queue.
     """
     engine = scorer or SimilarityEngine()
-    tp = fp = tn = fn = ambiguous = 0
+
+    tp = 0
+    fp = 0
+    tn = 0
+    fn = 0
+    ambiguous = 0
 
     for labeled in pairs:
-        decision = engine.compare(labeled.left, labeled.right)
+        decision = engine.compare(
+            labeled.left,
+            labeled.right,
+        )
+
         predicted_match = decision.status == "match"
+
         if decision.status == "ambiguous":
             ambiguous += 1
             predicted_match = ambiguous_as_match
@@ -73,9 +84,40 @@ def evaluate_pairs(
         else:
             tn += 1
 
-    precision = tp / (tp + fp) if tp + fp else 0.0
-    recall = tp / (tp + fn) if tp + fn else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    precision = (
+        tp / (tp + fp)
+        if tp + fp
+        else 0.0
+    )
+
+    recall = (
+        tp / (tp + fn)
+        if tp + fn
+        else 0.0
+    )
+
+    f1 = (
+        2 * precision * recall / (precision + recall)
+        if precision + recall
+        else 0.0
+    )
+
     total = tp + fp + tn + fn
-    accuracy = (tp + tn) / total if total else 0.0
-    return EvaluationMetrics(tp, fp, tn, fn, ambiguous, precision, recall, f1, accuracy)
+
+    accuracy = (
+        (tp + tn) / total
+        if total
+        else 0.0
+    )
+
+    return EvaluationMetrics(
+        tp,
+        fp,
+        tn,
+        fn,
+        ambiguous,
+        precision,
+        recall,
+        f1,
+        accuracy,
+    )
