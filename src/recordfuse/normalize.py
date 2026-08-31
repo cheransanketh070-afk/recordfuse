@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 import unicodedata
 from collections.abc import Callable
@@ -13,41 +14,94 @@ def _text(value: Any) -> str:
 
 
 def normalize_name(value: Any) -> str:
-    text = unicodedata.normalize("NFKD", _text(value))
-    text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    text = re.sub(r"[^a-zA-Z0-9 ]+", " ", text).casefold()
+    text = unicodedata.normalize(
+        "NFKD",
+        _text(value),
+    )
+
+    text = "".join(
+        ch
+        for ch in text
+        if not unicodedata.combining(ch)
+    )
+
+    text = re.sub(
+        r"[^a-zA-Z0-9 ]+",
+        " ",
+        text.casefold(),
+    )
+
     return " ".join(text.split())
 
 
 def normalize_email(value: Any) -> str:
     """Normalise email conservatively without provider-specific alias rewriting."""
     text = _text(value).casefold()
+
     if "@" not in text:
         return text
+
     local, domain = text.rsplit("@", 1)
-    try:
+
+    with contextlib.suppress(UnicodeError):
         domain = domain.encode("idna").decode("ascii")
-    except UnicodeError:
-        pass
+
     return f"{local}@{domain}"
 
 
 def normalize_phone(value: Any) -> str:
-    text = re.sub(r"\D+", "", _text(value))
-    return text[2:] if text.startswith("00") else text
+    text = re.sub(
+        r"\D+",
+        "",
+        _text(value),
+    )
+
+    return (
+        text[2:]
+        if text.startswith("00")
+        else text
+    )
 
 
 def normalize_address(value: Any) -> str:
-    text = unicodedata.normalize("NFKD", _text(value))
-    text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    text = re.sub(r"[^\w\s]", " ", text.casefold())
-    replacements = {"street": "st", "road": "rd", "avenue": "ave", "boulevard": "blvd"}
-    tokens = [replacements.get(token, token) for token in text.split()]
+    text = unicodedata.normalize(
+        "NFKD",
+        _text(value),
+    )
+
+    text = "".join(
+        ch
+        for ch in text
+        if not unicodedata.combining(ch)
+    )
+
+    text = re.sub(
+        r"[^\w\s]",
+        " ",
+        text.casefold(),
+    )
+
+    replacements = {
+        "street": "st",
+        "road": "rd",
+        "avenue": "ave",
+        "boulevard": "blvd",
+    }
+
+    tokens = [
+        replacements.get(token, token)
+        for token in text.split()
+    ]
+
     return " ".join(tokens)
 
 
 def normalize_generic(value: Any) -> str:
-    return re.sub(r"\s+", " ", _text(value).casefold())
+    return re.sub(
+        r"\s+",
+        " ",
+        _text(value).casefold(),
+    )
 
 
 class NormalizerRegistry:
@@ -61,10 +115,24 @@ class NormalizerRegistry:
             "address": normalize_address,
         }
 
-    def register(self, field: str, fn: Callable[[Any], str]) -> None:
+    def register(
+        self,
+        field: str,
+        fn: Callable[[Any], str],
+    ) -> None:
         if not field:
-            raise ValueError("field name cannot be empty")
+            raise ValueError(
+                "field name cannot be empty"
+            )
+
         self._normalizers[field] = fn
 
-    def normalize(self, field: str, value: Any) -> str:
-        return self._normalizers.get(field, normalize_generic)(value)
+    def normalize(
+        self,
+        field: str,
+        value: Any,
+    ) -> str:
+        return self._normalizers.get(
+            field,
+            normalize_generic,
+        )(value)
