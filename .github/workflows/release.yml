@@ -17,7 +17,7 @@ jobs:
           python-version: "3.13"
       - run: python -m pip install build
       - run: python -m build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: recordfuse-dist
           path: dist/*
